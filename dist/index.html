@@ -14,7 +14,10 @@
       <a href="create.html" id="createLink">Create</a>
       <a href="wallet.html" id="walletLink">Wallet</a>
       <a href="admin.html" id="adminLink" style="display:none">Admin</a>
-      <a href="login.html" id="authLink">Login</a>
+      <div class="nav-actions">
+        <a href="login.html" id="authLink" class="btn small">Login</a>
+        <a href="signup.html" id="signupBtn" class="btn alt small">Sign Up</a>
+      </div>
     </nav>
   </header>
 
@@ -43,6 +46,7 @@
   <script src="assets/js/firebase-config.js"></script>
   <script src="assets/js/common.js"></script>
   <script>
+    // If the user opened a /s/* path (Netlify serves index.html), redirect to share.html to handle the id.
     (function handleSPath() {
       const path = location.pathname;
       if (path.startsWith("/s/")) {
@@ -61,18 +65,29 @@
     let currentUser = null;
     firebase.auth().onAuthStateChanged(user => {
       currentUser = user;
-      document.getElementById("authLink").textContent = user ? "Logout" : "Login";
+      const authLink = document.getElementById("authLink");
+      const signupBtn = document.getElementById("signupBtn");
+
       if (user) {
-        document.getElementById("authLink").href = "#";
-        document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+        authLink.textContent = "Logout";
+        authLink.href = "#";
+        authLink.onclick = () => firebase.auth().signOut();
+        signupBtn.style.display = "none";
         document.getElementById("createLink").style.display = "inline-block";
         document.getElementById("walletLink").style.display = "inline-block";
         if (user.email === adminEmail) {
           document.getElementById("adminLink").style.display = "inline-block";
+        } else {
+          document.getElementById("adminLink").style.display = "none";
         }
       } else {
+        authLink.textContent = "Login";
+        authLink.href = "login.html";
+        authLink.onclick = null;
+        signupBtn.style.display = "inline-block";
         document.getElementById("createLink").style.display = "none";
         document.getElementById("walletLink").style.display = "none";
+        document.getElementById("adminLink").style.display = "none";
       }
     });
 
@@ -113,6 +128,7 @@
               createdAt: data.createdAt ? data.createdAt.toDate() : new Date(0)
             });
           });
+          // filter
           const filtered = items.filter(i => i.title.toLowerCase().includes(query.toLowerCase()) || i.content.toLowerCase().includes(query.toLowerCase()));
           articlesEl.innerHTML = "";
           if (filtered.length === 0) {
