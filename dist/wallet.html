@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Wallet - Newzo</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="create.html" id="createLink">Create</a>
+      <a href="wallet.html" id="walletLink">Wallet</a>
+      <a href="admin.html" id="adminLink" style="display:none">Admin</a>
+      <a href="login.html" id="authLink">Login</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Your Wallet</h2>
+      <div id="balance" class="huge">Loading...</div>
+      <div style="margin-top:1rem;">
+        <label>Request Withdrawal Amount
+          <input id="withdrawAmount" type="number" min="1" />
+        </label>
+        <div style="margin-top:0.5rem;">
+          <button class="btn" id="requestBtn">Request Withdrawal</button>
+        </div>
+      </div>
+
+      <h3 style="margin-top:1.5rem;">Your Withdrawal Requests</h3>
+      <div id="requests"></div>
+    </section>
+  </main>
+
+  <footer class="footer"><small>© Newzo</small></footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script>
+    let currentUser = null;
+    firebase.auth().onAuthStateChanged(async user => {
+      currentUser = user;
+      if (!user) {
+        alert('Please login to view wallet');
+        location.href = 'login.html';
+        return;
+      }
+      document.getElementById("authLink").textContent = "Logout";
+      document.getElementById("authLink").href = "#";
+      document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+      loadWallet();
+      loadRequests();
+    });
+
+    async function loadWallet() {
+      const uid = firebase.auth().currentUser.uid;
+      const userDoc = await firebase.firestore().collection("users").doc(uid).get();
+      const w = userDoc.exists ? (userDoc.data().wallet || 0) : 0;
+      document.getElementById("balance").textContent = w + " points";
+    }
+
+    async function loadRequests() {
+      const uid = firebase.auth().currentUser.uid;
+      const q = await firebase.firestore().collection("withdrawals")
+        .where("userId", "==", uid)
+        .orderBy("createdAt", "desc")
+        .get();
+      const container = document.getElementById("requests");
+      container.innerHTML = "";
+      if (q.empty) {
+        container.innerHTML = "<p class='muted'>No withdrawal requests.</p>";
+        return;
+      }
+      q.forEach(doc => {
+        const d = doc.data();
+        const el = document.createElement("div");
+        el.className = "withdraw-row";
+        el.innerHTML = `<div>${d.amount} points</div><div class="muted">${d.status || 'pending'}</div>`;
+        container.appendChild(el);
+      });
+    }
+
+    document.getElementById("requestBtn").addEventListener("click", async () => {
+      const amount = Number(document.getElementById("withdrawAmount").value);
+      if (!amount || amount <= 0) return alert('Enter a valid amount');
+      const uid = firebase.auth().currentUser.uid;
+      const userRef = firebase.firestore().collection("users").doc(uid);
+      const userDoc = await userRef.get();
+      const wallet = userDoc.exists ? (userDoc.data().wallet || 0) : 0;
+      if (amount > wallet) return alert('Insufficient balance');
+      await firebase.firestore().collection("withdrawals").add({
+        userId: uid,
+        amount,
+        status: "pending",
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      alert('Withdrawal requested');
+      loadWallet();
+      loadRequests();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Article - Newzo</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="create.html" id="createLink">Create</a>
+      <a href="wallet.html" id="walletLink">Wallet</a>
+      <a href="admin.html" id="adminLink" style="display:none">Admin</a>
+      <a href="login.html" id="authLink">Login</a>
+    </nav>
+  </header>
+
+  <main class="container article-wrap">
+    <article id="article">
+      <div class="loading">Loading article...</div>
+    </article>
+  </main>
+
+  <footer class="footer">
+    <small>© Newzo — Share & Earn</small>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script>
+    const adminEmail = "adminsingh123@gmail.com";
+    let currentUser = null;
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      document.getElementById("authLink").textContent = user ? "Logout" : "Login";
+      if (user) {
+        document.getElementById("authLink").href = "#";
+        document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+        document.getElementById("createLink").style.display = "inline-block";
+        document.getElementById("walletLink").style.display = "inline-block";
+        if (user.email === adminEmail) {
+          document.getElementById("adminLink").style.display = "inline-block";
+        }
+      } else {
+        document.getElementById("createLink").style.display = "none";
+        document.getElementById("walletLink").style.display = "none";
+      }
+    });
+
+    function getQueryParam(name) {
+      return new URLSearchParams(location.search).get(name);
+    }
+
+    const articleId = getQueryParam("id");
+    if (!articleId) {
+      document.getElementById("article").innerHTML = "<p class='muted'>No article specified.</p>";
+    } else {
+      loadArticle(articleId);
+    }
+
+    function renderFullArticle(a) {
+      return `
+        <div class="article-header">
+          <h1>${escapeHtml(a.title)}</h1>
+          <p class="muted">by ${escapeHtml(a.authorEmail || 'unknown')} • ${timeAgo(a.createdAt)}</p>
+        </div>
+        <img class="article-image" src="${a.imageUrl || 'assets/images/placeholder.png'}" alt="image"/>
+        <div class="article-content">${escapeHtml(a.content).replace(/\n/g, '<br/>')}</div>
+        <div class="article-actions">
+          <a class="btn" href="/s/${a.id}" target="_blank">Share</a>
+          <button id="externalBtn" class="btn alt">Open External Link</button>
+        </div>
+      `;
+    }
+
+    async function loadArticle(id) {
+      const artEl = document.getElementById("article");
+      artEl.innerHTML = "<div class='loading'>Loading...</div>";
+      try {
+        const doc = await firebase.firestore().collection("articles").doc(id).get();
+        if (!doc.exists) {
+          artEl.innerHTML = "<p class='muted'>Article not found.</p>";
+          return;
+        }
+        const data = doc.data();
+        const article = {
+          id: doc.id,
+          title: data.title,
+          content: data.content,
+          imageUrl: data.imageUrl,
+          authorId: data.authorId,
+          authorEmail: data.authorEmail,
+          createdAt: data.createdAt ? data.createdAt.toDate() : new Date(0)
+        };
+        artEl.innerHTML = renderFullArticle(article);
+
+        const deviceId = getDeviceId();
+        fetch('/.netlify/functions/recordView', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ articleId: id, deviceId })
+        }).then(res => res.json()).then(res => {
+          console.log('view result', res);
+        }).catch(err => console.warn(err));
+
+        document.getElementById("externalBtn").addEventListener("click", async () => {
+          try {
+            const res = await fetch('/.netlify/functions/recordClick', {
+              method: 'POST',
+              headers: {'Content-Type':'application/json'},
+              body: JSON.stringify({ articleId: id, deviceId: getDeviceId() })
+            });
+            const json = await res.json();
+            if (json.redirect) {
+              window.open(json.redirect, '_blank');
+            } else {
+              alert('No external link configured.');
+            }
+          } catch (err) {
+            console.error(err);
+            alert('Failed to open link.');
+          }
+        });
+
+      } catch (err) {
+        console.error(err);
+        artEl.innerHTML = "<p class='muted'>Error loading article.</p>";
+      }
+    }
+  </script>
+</body>
+</html>

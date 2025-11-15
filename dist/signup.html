@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Sign Up - Newzo</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card form-card">
+      <h2>Create Account</h2>
+      <form id="signupForm">
+        <label>Email<input type="email" id="email" required /></label>
+        <label>Password<input type="password" id="password" required /></label>
+        <div style="margin-top:1rem;">
+          <button class="btn" type="submit">Sign Up</button>
+          <a href="login.html" class="btn alt">Login</a>
+        </div>
+      </form>
+      <div id="status" class="muted"></div>
+    </section>
+  </main>
+
+  <footer class="footer"><small>© Newzo</small></footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script>
+    const status = document.getElementById("status");
+    document.getElementById("signupForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const email = document.getElementById("email").value;
+      const password = document.getElementById("password").value;
+      status.textContent = "Creating account...";
+      try {
+        const res = await firebase.auth().createUserWithEmailAndPassword(email, password);
+        await firebase.firestore().collection("users").doc(res.user.uid).set({
+          email: email,
+          wallet: 0,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        status.textContent = "Account created!";
+        location.href = "index.html";
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Error: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>

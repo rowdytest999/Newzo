@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin - Newzo</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="create.html" id="createLink">Create</a>
+      <a href="wallet.html" id="walletLink">Wallet</a>
+      <a href="admin.html" id="adminLink" style="display:none">Admin</a>
+      <a href="login.html" id="authLink">Login</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card">
+      <h2>Admin Panel</h2>
+
+      <div>
+        <h3>External Links (rotating)</h3>
+        <div id="linksList"></div>
+        <div style="margin-top:1rem;">
+          <input id="linkTitle" placeholder="Title" />
+          <input id="linkUrl" placeholder="https://example.com" />
+          <button class="btn" id="addLinkBtn">Add Link</button>
+        </div>
+      </div>
+
+      <hr/>
+
+      <div>
+        <h3>Withdrawals</h3>
+        <div id="withdrawals"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer"><small>© Newzo</small></footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script>
+    const ADMIN_EMAIL = "adminsingh123@gmail.com";
+    let currentUser = null;
+
+    firebase.auth().onAuthStateChanged(async user => {
+      currentUser = user;
+      if (!user) {
+        alert('Admin login required');
+        location.href = 'login.html';
+        return;
+      }
+      if (user.email !== ADMIN_EMAIL) {
+        alert('Access denied: not admin');
+        location.href = 'index.html';
+        return;
+      }
+      document.getElementById("authLink").textContent = "Logout";
+      document.getElementById("authLink").href = "#";
+      document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+      document.getElementById("adminLink").style.display = "inline-block";
+      loadSettings();
+      loadWithdrawals();
+    });
+
+    async function loadSettings() {
+      const snap = await firebase.firestore().collection("settings").limit(1).get();
+      const listEl = document.getElementById("linksList");
+      listEl.innerHTML = "";
+      if (snap.empty) {
+        listEl.innerHTML = "<p class='muted'>No external links configured.</p>";
+        return;
+      }
+      const doc = snap.docs[0];
+      const data = doc.data();
+      const links = data.externalLinks || [];
+      links.forEach((l, idx) => {
+        const row = document.createElement('div');
+        row.className = "link-row";
+        row.innerHTML = `<div><strong>${escapeHtml(l.title || l)}</strong> - <a href="${escapeHtml(l.url || l)}" target="_blank">${escapeHtml(l.url || l)}</a></div>
+          <div><button class="btn small" data-idx="${idx}" data-id="${doc.id}">Remove</button></div>`;
+        listEl.appendChild(row);
+      });
+      listEl.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const idx = Number(btn.getAttribute('data-idx'));
+          const docId = btn.getAttribute('data-id');
+          const dref = firebase.firestore().collection("settings").doc(docId);
+          const dSnap = await dref.get();
+          if (!dSnap.exists) return;
+          const data = dSnap.data();
+          const links = data.externalLinks || [];
+          links.splice(idx, 1);
+          await dref.update({ externalLinks: links });
+          loadSettings();
+        });
+      });
+    }
+
+    document.getElementById("addLinkBtn").addEventListener("click", async () => {
+      const title = document.getElementById("linkTitle").value.trim();
+      const url = document.getElementById("linkUrl").value.trim();
+      if (!url) return alert('URL required');
+      const coll = firebase.firestore().collection("settings");
+      const snap = await coll.limit(1).get();
+      if (snap.empty) {
+        await coll.add({ externalLinks: [{ title, url }], createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      } else {
+        const doc = snap.docs[0];
+        const data = doc.data();
+        const links = data.externalLinks || [];
+        links.push({ title, url });
+        await coll.doc(doc.id).update({ externalLinks: links });
+      }
+      document.getElementById("linkTitle").value = "";
+      document.getElementById("linkUrl").value = "";
+      loadSettings();
+    });
+
+    async function loadWithdrawals() {
+      const snap = await firebase.firestore().collection("withdrawals").orderBy("createdAt", "desc").get();
+      const el = document.getElementById("withdrawals");
+      el.innerHTML = "";
+      if (snap.empty) {
+        el.innerHTML = "<p class='muted'>No withdrawal requests.</p>";
+        return;
+      }
+      snap.forEach(doc => {
+        const d = doc.data();
+        const row = document.createElement('div');
+        row.className = "withdraw-row";
+        row.innerHTML = `<div><strong>${d.amount} pts</strong> - ${escapeHtml(d.userId || '')}</div>
+          <div class="muted">${d.status || 'pending'}</div>
+          <div>
+            ${d.status === 'pending' ? `<button class="btn small approve" data-id="${doc.id}">Approve</button>
+            <button class="btn small alt reject" data-id="${doc.id}">Reject</button>` : ''}
+          </div>`;
+        el.appendChild(row);
+      });
+      el.querySelectorAll('.approve').forEach(btn => btn.addEventListener('click', () => handleApproval(btn.getAttribute('data-id'), true)));
+      el.querySelectorAll('.reject').forEach(btn => btn.addEventListener('click', () => handleApproval(btn.getAttribute('data-id'), false)));
+    }
+
+    async function handleApproval(id, approve) {
+      const ref = firebase.firestore().collection("withdrawals").doc(id);
+      const snap = await ref.get();
+      if (!snap.exists) return;
+      const data = snap.data();
+      if (!approve) {
+        await ref.update({ status: 'rejected' });
+        loadWithdrawals();
+        return;
+      }
+      const userRef = firebase.firestore().collection("users").doc(data.userId);
+      await firebase.firestore().runTransaction(async tx => {
+        const userSnap = await tx.get(userRef);
+        const wallet = userSnap.exists ? (userSnap.data().wallet || 0) : 0;
+        const newWallet = Math.max(0, wallet - data.amount);
+        tx.set(userRef, { wallet: newWallet }, { merge: true });
+        tx.update(ref, { status: 'paid' });
+      });
+      loadWithdrawals();
+    }
+  </script>
+</body>
+</html>

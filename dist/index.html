@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Newzo - Share & Earn</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="create.html" id="createLink">Create</a>
+      <a href="wallet.html" id="walletLink">Wallet</a>
+      <a href="admin.html" id="adminLink" style="display:none">Admin</a>
+      <a href="login.html" id="authLink">Login</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Discover fresh articles — Share & Earn</h1>
+      <p>Write, share links, and earn rewards per view and click.</p>
+    </section>
+
+    <section>
+      <div class="filters">
+        <input id="searchInput" placeholder="Search articles..." />
+      </div>
+      <div id="articles" class="grid"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>© Newzo — Share & Earn</small>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script>
+    (function handleSPath() {
+      const path = location.pathname;
+      if (path.startsWith("/s/")) {
+        const id = path.split("/s/")[1];
+        if (id) {
+          location.replace(`/share.html?id=${encodeURIComponent(id)}`);
+          return;
+        }
+      }
+    })();
+
+    const articlesEl = document.getElementById("articles");
+    const searchInput = document.getElementById("searchInput");
+    const adminEmail = "adminsingh123@gmail.com";
+
+    let currentUser = null;
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      document.getElementById("authLink").textContent = user ? "Logout" : "Login";
+      if (user) {
+        document.getElementById("authLink").href = "#";
+        document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+        document.getElementById("createLink").style.display = "inline-block";
+        document.getElementById("walletLink").style.display = "inline-block";
+        if (user.email === adminEmail) {
+          document.getElementById("adminLink").style.display = "inline-block";
+        }
+      } else {
+        document.getElementById("createLink").style.display = "none";
+        document.getElementById("walletLink").style.display = "none";
+      }
+    });
+
+    function renderArticleCard(a) {
+      const div = document.createElement("div");
+      div.className = "card";
+      div.innerHTML = `
+        <img src="${a.imageUrl || 'assets/images/placeholder.png'}" alt="thumb"/>
+        <div class="card-body">
+          <h3>${escapeHtml(a.title)}</h3>
+          <p class="muted">by ${escapeHtml(a.authorEmail || 'unknown')} • ${timeAgo(a.createdAt)}</p>
+          <p class="excerpt">${escapeHtml((a.content || "").slice(0, 120))}...</p>
+          <div class="card-actions">
+            <a class="btn" href="article.html?id=${a.id}">Read</a>
+            <a class="btn alt" href="/s/${a.id}" target="_blank">Share</a>
+          </div>
+        </div>
+      `;
+      return div;
+    }
+
+    function loadArticles(query = "") {
+      articlesEl.innerHTML = "<div class='loading'>Loading...</div>";
+      firebase.firestore().collection("articles")
+        .orderBy("createdAt", "desc")
+        .limit(50)
+        .get()
+        .then(snapshot => {
+          const items = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            items.push({
+              id: doc.id,
+              title: data.title,
+              content: data.content,
+              imageUrl: data.imageUrl,
+              authorEmail: data.authorEmail,
+              createdAt: data.createdAt ? data.createdAt.toDate() : new Date(0)
+            });
+          });
+          const filtered = items.filter(i => i.title.toLowerCase().includes(query.toLowerCase()) || i.content.toLowerCase().includes(query.toLowerCase()));
+          articlesEl.innerHTML = "";
+          if (filtered.length === 0) {
+            articlesEl.innerHTML = "<p class='muted'>No articles yet.</p>";
+            return;
+          }
+          filtered.forEach(a => articlesEl.appendChild(renderArticleCard(a)));
+        })
+        .catch(err => {
+          console.error(err);
+          articlesEl.innerHTML = "<p class='muted'>Failed to load articles.</p>";
+        });
+    }
+
+    searchInput.addEventListener("input", (e) => loadArticles(e.target.value));
+
+    loadArticles();
+  </script>
+</body>
+</html>

@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Create Article - Newzo</title>
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Newzo</div>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="create.html" id="createLink">Create</a>
+      <a href="wallet.html" id="walletLink">Wallet</a>
+      <a href="admin.html" id="adminLink" style="display:none">Admin</a>
+      <a href="login.html" id="authLink">Login</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    <section class="card form-card">
+      <h2>Create New Article</h2>
+      <form id="createForm">
+        <label>Title
+          <input id="title" required />
+        </label>
+        <label>Content
+          <textarea id="content" rows="8" required></textarea>
+        </label>
+        <label>Cover Image
+          <input id="imageInput" type="file" accept="image/*" />
+        </label>
+        <div class="muted">Image will be uploaded via ImageBB.</div>
+        <div style="margin-top:1rem;">
+          <button class="btn" type="submit">Publish</button>
+          <a href="index.html" class="btn alt">Cancel</a>
+        </div>
+      </form>
+      <div id="status" class="muted"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <small>© Newzo — Share & Earn</small>
+  </footer>
+
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+
+  <script src="assets/js/firebase-config.js"></script>
+  <script src="assets/js/common.js"></script>
+  <script>
+    const ADMIN_EMAIL = "adminsingh123@gmail.com";
+    let currentUser = null;
+    firebase.auth().onAuthStateChanged(user => {
+      currentUser = user;
+      if (!user) {
+        alert('You must be logged in to create articles');
+        location.href = 'login.html';
+        return;
+      }
+      document.getElementById("authLink").textContent = "Logout";
+      document.getElementById("authLink").href = "#";
+      document.getElementById("authLink").onclick = () => firebase.auth().signOut();
+      document.getElementById("createLink").style.display = "inline-block";
+      document.getElementById("walletLink").style.display = "inline-block";
+      if (user.email === ADMIN_EMAIL) {
+        document.getElementById("adminLink").style.display = "inline-block";
+      }
+    });
+
+    const form = document.getElementById("createForm");
+    const imageInput = document.getElementById("imageInput");
+    const status = document.getElementById("status");
+
+    async function uploadImage(file) {
+      const apiKey = "4f35947e19712065d858766e83fea8cd";
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error('Image upload failed');
+      return json.data.url;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!currentUser) return alert('Login required');
+      const title = document.getElementById("title").value.trim();
+      const content = document.getElementById("content").value.trim();
+      status.textContent = "Publishing...";
+      let imageUrl = "";
+      const file = imageInput.files[0];
+      try {
+        if (file) {
+          status.textContent = "Uploading image...";
+          imageUrl = await uploadImage(file);
+        }
+        const docRef = await firebase.firestore().collection("articles").add({
+          title,
+          content,
+          imageUrl,
+          authorId: currentUser.uid,
+          authorEmail: currentUser.email,
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          views: 0
+        });
+        status.textContent = "Article published!";
+        setTimeout(() => { location.href = `article.html?id=${docRef.id}` }, 800);
+      } catch (err) {
+        console.error(err);
+        status.textContent = "Failed to publish: " + err.message;
+      }
+    });
+  </script>
+</body>
+</html>
