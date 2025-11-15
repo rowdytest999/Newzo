@@ -1,4 +1,3 @@
-<style>
 :root{
   --bg:#07070a;
   --card:#0f1116;
@@ -42,12 +41,15 @@ body{
   text-shadow:0 0 8px rgba(0,230,216,0.06);
 }
 
+.topbar nav{ display:flex; align-items:center; gap:12px; width:100%; justify-content:space-between }
 .topbar nav a{
   color:var(--muted);
   margin-left:14px;
   text-decoration:none;
 }
 .topbar nav a:hover{color:var(--neon)}
+
+.nav-actions{ display:flex; gap:10px; align-items:center; margin-left:auto; }
 
 .container{
   max-width:var(--maxwidth);
@@ -126,5 +128,6 @@ input, textarea{width:100%; padding:10px; margin-top:6px; background:var(--glass
   .grid{grid-template-columns:repeat(1,1fr)}
   .article-image{height:220px}
   .topbar{padding:12px}
+  .nav-actions{ gap:6px }
+  .topbar nav{ flex-direction:row; align-items:center }
 }
-</style>
