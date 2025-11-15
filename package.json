@@ -1,0 +1,15 @@
+{
+  "name": "share-and-earn-app",
+  "version": "1.0.0",
+  "description": "Share & Earn web app ready for Netlify deployment",
+  "main": "netlify/functions/adminInit.js",
+  "scripts": {
+    "start": "echo \"Netlify will serve the dist folder; use netlify dev for local testing\"",
+    "build": "echo \"No build step required\""
+  },
+  "author": "auto-generated",
+  "license": "MIT",
+  "dependencies": {
+    "firebase-admin": "^11.12.0"
+  }
+}
